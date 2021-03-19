@@ -1,15 +1,18 @@
 class World {
-    constructor(width, height) {
+    constructor(width, height, depth) {
         this.width = width;
         this.height = height;
+        this.depth = depth;
     }
 
     bounds(sprite) {
         return {
             x1: sprite.width / 2,
             y1: sprite.height / 2,
+            z1: 0,
             x2: this.width - sprite.width / 2,
             y2: this.height - sprite.height / 2,
+            z2: this.depth
         }
     }
 }
@@ -20,14 +23,26 @@ class Sprite extends Image {
         this.src = img;
         this.posX = 0;
         this.posY = 0;
+        this.posZ = 0;
         this.velocX = 0;
         this.velocY = 0;
+        this.velocZ = 0;
+        this.zScale = 1;
     }
 
     draw(ctx) {
         ctx.save();
-        ctx.translate(-this.width / 2, -this.height / 2);
-        ctx.drawImage(this, this.posX, this.posY);
+        ctx.translate(
+            -(this.width + this.posZ * this.zScale) / 2,
+            -(this.height + this.posZ * this.zScale) / 2
+        );
+        ctx.drawImage(
+            this,
+            this.posX,
+            this.posY,
+            this.width + this.posZ * this.zScale,
+            this.height + this.posZ * this.zScale
+        );
         ctx.restore();
     } 
 
@@ -35,7 +50,8 @@ class Sprite extends Image {
     // for negative (overlapping) to appear as if the ball is on the edge of
     // a hole before falling in
     collision(sprite, delta) {
-        return Math.abs(this.posX - sprite.posX) < this.width / 2 + delta
+        return this.posZ == sprite.posZ
+            && Math.abs(this.posX - sprite.posX) < this.width / 2 + delta
             && Math.abs(this.posY - sprite.posY) < this.height / 2 + delta;
     }
 }
@@ -52,10 +68,13 @@ ctx.lineWidth = 8;
 ctx.lineJoin = 'round';
 ctx.fillStyle = '#00008b';
 
-const world = new World(canvas.width, canvas.height);
+const world = new World(canvas.width, canvas.height, 60);
 
 const ball = new Sprite('ball.png');
+ball.zScale = 0.25;
+
 const goal = new Sprite('goal.png');
+
 const holes = [
     new Sprite('hole.png'),
     new Sprite('hole.png'),
@@ -70,8 +89,10 @@ function init() {
 
     ball.posX = world.width / 2;
     ball.posY = world.height / 2;
+    ball.posZ = 0;
     ball.velocX = 0;
     ball.velocY = 0;
+    ball.velocZ = 0;
 
     // don't place holes on the edge
     const padding = 25;
@@ -120,6 +141,16 @@ function update() {
         ball.velocY = 0;
     }
 
+    ball.posZ += ball.velocZ;
+    if (ball.posZ < bounds.z1) {
+        ball.posZ = bounds.z1;
+        ball.velocZ = 0;
+    }
+    if (ball.posZ > bounds.z2) {
+        ball.posZ = bounds.z2;
+        ball.velocZ = -ball.velocZ;
+    }
+
     if (ball.collision(goal, -15)) {
         gameOver = 'YOU WIN!';
         setTimeout(init, 3000);
@@ -160,6 +191,11 @@ window.addEventListener('deviceorientation', (evt) => {
     ball.velocX = evt.gamma / 2;
     ball.velocY = evt.beta / 2;
 });
+window.addEventListener('touchstart', (evt) => {
+    if (ball.velocZ == 0) {
+        ball.velocZ = 5;
+    }
+});
 
 // use arrow keys for fallback controls (ie desktop)
 document.addEventListener('keydown', (evt) => {
@@ -169,6 +205,12 @@ document.addEventListener('keydown', (evt) => {
 
         case 'ArrowLeft':  ball.velocX = -5; break;
         case 'ArrowRight': ball.velocX =  5; break;
+
+        case 'Space':
+            if (ball.velocZ == 0) {
+                ball.velocZ = 5;
+            }
+            break;
     }
 });
 document.addEventListener('keyup', (evt) => {
